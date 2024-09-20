@@ -5,8 +5,9 @@ from flask_pymongo import PyMongo
 from flask_restful import Api, Resource
 
 app = Flask(__name__)
-app.config["MONGO_DBNAME"] = "tweets_db"
-mongo = PyMongo(app, config_prefix='MONGO')
+# app.config["MONGO_DBNAME"] = "tweets_db"
+app.config["MONGO_URI"] = "mongodb://localhost:27017/DemoDB"
+mongo = PyMongo(app)
 APP_URL = "http://127.0.0.1:5000"
 
 
@@ -15,9 +16,12 @@ class Tweets(Resource):
         data = []
 
         if id:
-            tweet_info = mongo.db.tweets.find_one({"id": id}, {"_id": 0})
+            # tweet_info = mongo.db.tweets.find_one({"id": id}, {"_id": 0})
+            tweet_info = mongo.db.tweets.find({}, {"_id": 0})
+            for tweet in tweet_info:
+                data.append(tweet)
             if tweet_info:
-                return jsonify({"status": "ok", "data": tweet_info})
+                return jsonify({"status": "ok", "data": data})
             else:
                 return {"response": "no tweet found for {}".format(id)}
 
@@ -43,7 +47,7 @@ class Tweets(Resource):
             cursor = mongo.db.tweets.find({}, {"_id": 0, "update_time": 0}).limit(10)
 
             for tweet in cursor:
-                print tweet
+                # print tweet
                 tweet['url'] = APP_URL + url_for('tweets') + "/" + tweet.get('id')
                 data.append(tweet)
 
@@ -80,8 +84,19 @@ class Index(Resource):
     def get(self):
         return redirect(url_for("tweets"))
 
+class CheckMongo(Resource):
+    def get(self):
+        try:
+            # Kiểm tra kết nối bằng cách truy vấn danh sách các cơ sở dữ liệu
+            db_names = mongo.cx.list_database_names()
+            collections = mongo.db.list_collection_names()
+            return jsonify({"status": "Connected", "databases": db_names, "collections": collections})
+        except Exception as e:
+            return jsonify({"status": "Connection failed", "error": str(e)})
+        
 
 api = Api(app)
+api.add_resource(CheckMongo, "/check_mongo", endpoint="check_mongo")
 api.add_resource(Index, "/", endpoint="index")
 api.add_resource(Tweets, "/api", endpoint="tweets")
 api.add_resource(Tweets, "/api/<string:id>", endpoint="id")
